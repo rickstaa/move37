@@ -2,23 +2,27 @@ import os
 import numpy as np
 import gym
 from gym import wrappers
+
 # import pybullet_envs
 
-ENV_NAME = 'BipedalWalker-v2'
+ENV_NAME = "BipedalWalker-v3"
 # ENV_NAME = 'HalfCheetahBulletEnv-v0'
 
-class Hp():
+
+class Hp:
     # Hyperparameters
-    def __init__(self,
-                 nb_steps=1000,
-                 episode_length=2000,
-                 learning_rate=0.02,
-                 num_deltas=16,
-                 num_best_deltas=16,
-                 noise=0.03,
-                 seed=1,
-                 env_name='BipedalWalker-v2',
-                 record_every=50):
+    def __init__(
+        self,
+        nb_steps=1000,
+        episode_length=2000,
+        learning_rate=0.02,
+        num_deltas=16,
+        num_best_deltas=16,
+        noise=0.03,
+        seed=1,
+        env_name="BipedalWalker-v2",
+        record_every=50,
+    ):
 
         self.nb_steps = nb_steps
         self.episode_length = episode_length
@@ -32,7 +36,7 @@ class Hp():
         self.record_every = record_every
 
 
-class Normalizer():
+class Normalizer:
     # Normalizes the inputs
     def __init__(self, nb_inputs):
         self.n = np.zeros(nb_inputs)
@@ -45,7 +49,7 @@ class Normalizer():
         last_mean = self.mean.copy()
         self.mean += (x - self.mean) / self.n
         self.mean_diff += (x - last_mean) * (x - self.mean)
-        self.var = (self.mean_diff / self.n).clip(min = 1e-2)
+        self.var = (self.mean_diff / self.n).clip(min=1e-2)
 
     def normalize(self, inputs):
         obs_mean = self.mean
@@ -53,18 +57,22 @@ class Normalizer():
         return (inputs - obs_mean) / obs_std
 
 
-class Policy():
+class Policy:
     def __init__(self, input_size, output_size, hp):
         self.theta = np.zeros((output_size, input_size))
         self.hp = hp
 
-    def evaluate(self, input, delta = None, direction = None):
+    def evaluate(self, input, delta=None, direction=None):
         if direction is None:
             return self.theta.dot(input)
         elif direction == "+":
-            return (self.theta + self.hp.noise * delta).dot(input)
+            return (self.theta + self.hp.noise * delta).dot(
+                input
+            )  # Add noise to the weights and calculate the outputs
         elif direction == "-":
-            return (self.theta - self.hp.noise * delta).dot(input)
+            return (self.theta - self.hp.noise * delta).dot(
+                input
+            )  # Add noise to the weights and calculate the outputs
 
     def sample_deltas(self):
         return [np.random.randn(*self.theta.shape) for _ in range(self.hp.num_deltas)]
@@ -74,25 +82,33 @@ class Policy():
         step = np.zeros(self.theta.shape)
         for r_pos, r_neg, delta in rollouts:
             step += (r_pos - r_neg) * delta
-        self.theta += self.hp.learning_rate / (self.hp.num_best_deltas * sigma_rewards) * step
+        self.theta += (
+            self.hp.learning_rate / (self.hp.num_best_deltas * sigma_rewards) * step
+        )
 
 
-class ArsTrainer():
-    def __init__(self,
-                 hp=None,
-                 input_size=None,
-                 output_size=None,
-                 normalizer=None,
-                 policy=None,
-                 monitor_dir=None):
+class ArsTrainer:
+    def __init__(
+        self,
+        hp=None,
+        input_size=None,
+        output_size=None,
+        normalizer=None,
+        policy=None,
+        monitor_dir=None,
+    ):
 
         self.hp = hp or Hp()
         np.random.seed(self.hp.seed)
         self.env = gym.make(self.hp.env_name)
         if monitor_dir is not None:
             should_record = lambda i: self.record_video
-            self.env = wrappers.Monitor(self.env, monitor_dir, video_callable=should_record, force=True)
-        self.hp.episode_length = self.env.spec.timestep_limit or self.hp.episode_length
+            self.env = wrappers.Monitor(
+                self.env, monitor_dir, video_callable=should_record, force=True
+            )
+        self.hp.episode_length = (
+            self.env.env._max_episode_steps or self.hp.episode_length
+        )
         self.input_size = input_size or self.env.observation_space.shape[0]
         self.output_size = output_size or self.env.action_space.shape[0]
         self.normalizer = normalizer or Normalizer(self.input_size)
@@ -101,7 +117,7 @@ class ArsTrainer():
 
     # Explore the policy on one specific direction and over one episode
     def explore(self, direction=None, delta=None):
-        state = self.env.reset()
+        state = self.env.env.reset()
         done = False
         num_plays = 0.0
         sum_rewards = 0.0
@@ -109,7 +125,7 @@ class ArsTrainer():
             self.normalizer.observe(state)
             state = self.normalizer.normalize(state)
             action = self.policy.evaluate(state, delta, direction)
-            state, reward, done, _ = self.env.step(action)
+            state, reward, done, _ = self.env.env.step(action)
             reward = max(min(reward, 1), -1)
             sum_rewards += reward
             num_plays += 1
@@ -126,14 +142,23 @@ class ArsTrainer():
             for k in range(self.hp.num_deltas):
                 positive_rewards[k] = self.explore(direction="+", delta=deltas[k])
                 negative_rewards[k] = self.explore(direction="-", delta=deltas[k])
-                
+
             # Compute the standard deviation of all rewards
             sigma_rewards = np.array(positive_rewards + negative_rewards).std()
 
             # Sort the rollouts by the max(r_pos, r_neg) and select the deltas with best rewards
-            scores = {k:max(r_pos, r_neg) for k,(r_pos,r_neg) in enumerate(zip(positive_rewards, negative_rewards))}
-            order = sorted(scores.keys(), key = lambda x:scores[x], reverse = True)[:self.hp.num_best_deltas]
-            rollouts = [(positive_rewards[k], negative_rewards[k], deltas[k]) for k in order]
+            scores = {
+                k: max(r_pos, r_neg)
+                for k, (r_pos, r_neg) in enumerate(
+                    zip(positive_rewards, negative_rewards)
+                )
+            }
+            order = sorted(scores.keys(), key=lambda x: scores[x], reverse=True)[
+                : self.hp.num_best_deltas
+            ]
+            rollouts = [
+                (positive_rewards[k], negative_rewards[k], deltas[k]) for k in order
+            ]
 
             # Update the policy
             self.policy.update(rollouts, sigma_rewards)
@@ -143,7 +168,7 @@ class ArsTrainer():
                 self.record_video = True
             # Play an episode with the new weights and print the score
             reward_evaluation = self.explore()
-            print('Step: ', step, 'Reward: ', reward_evaluation)
+            print("Step: ", step, "Reward: ", reward_evaluation)
             self.record_video = False
 
 
@@ -153,9 +178,10 @@ def mkdir(base, name):
         os.makedirs(path)
     return path
 
+
 # Main code
-if __name__ == '__main__':
-    videos_dir = mkdir('.', 'videos')
+if __name__ == "__main__":
+    videos_dir = mkdir(".", "videos")
     monitor_dir = mkdir(videos_dir, ENV_NAME)
     hp = Hp(seed=1946, env_name=ENV_NAME)
     trainer = ArsTrainer(hp=hp, monitor_dir=monitor_dir)

@@ -18,20 +18,16 @@ class AtariA2C(nn.Module):
             nn.Conv2d(32, 64, kernel_size=4, stride=2),
             nn.ReLU(),
             nn.Conv2d(64, 64, kernel_size=3, stride=1),
-            nn.ReLU()
+            nn.ReLU(),
         )
 
         conv_out_size = self._get_conv_out(input_shape)
         self.policy = nn.Sequential(
-            nn.Linear(conv_out_size, 512),
-            nn.ReLU(),
-            nn.Linear(512, n_actions)
+            nn.Linear(conv_out_size, 512), nn.ReLU(), nn.Linear(512, n_actions)
         )
 
         self.value = nn.Sequential(
-            nn.Linear(conv_out_size, 512),
-            nn.ReLU(),
-            nn.Linear(512, 1)
+            nn.Linear(conv_out_size, 512), nn.ReLU(), nn.Linear(512, 1)
         )
 
     def _get_conv_out(self, shape):
@@ -44,7 +40,7 @@ class AtariA2C(nn.Module):
         return self.policy(conv_out), self.value(conv_out)
 
 
-def unpack_batch(batch, net, last_val_gamma, device='cpu'):
+def unpack_batch(batch, net, last_val_gamma, device="cpu"):
     """
     Convert batch into training tensors
     :param batch:
@@ -104,13 +100,13 @@ def unpack_batch_continuous(batch, net, last_val_gamma, device="cpu"):
         if exp.last_state is not None:
             not_done_idx.append(idx)
             last_states.append(exp.last_state)
-    states_v = ptan.agent.float32_preprocessor(states).to(device)
+    states_v = ptan.agent.float32_preprocessor(states).to(device) # Creates float 32 torch tensor.
     actions_v = torch.FloatTensor(actions).to(device)
 
     # handle rewards
     rewards_np = np.array(rewards, dtype=np.float32)
     if not_done_idx:
-        last_states_v = ptan.agent.float32_preprocessor(last_states).to(device)
+        last_states_v = ptan.agent.float32_preprocessor(last_states).to(device) # Pytorch wrapper library for working with agents.
         last_vals_v = net(last_states_v)[2]
         last_vals_np = last_vals_v.data.cpu().numpy()[:, 0]
         rewards_np[not_done_idx] += last_val_gamma * last_vals_np
@@ -120,6 +116,9 @@ def unpack_batch_continuous(batch, net, last_val_gamma, device="cpu"):
 
 
 class RewardTracker:
+    """Keeps statistics on each episode. Tells us when training is finished or when we
+    reached the new highest reward"""
+
     def __init__(self, writer, stop_reward):
         self.writer = writer
         self.stop_reward = stop_reward
@@ -141,9 +140,10 @@ class RewardTracker:
         self.ts = time.time()
         mean_reward = np.mean(self.total_rewards[-100:])
         epsilon_str = "" if epsilon is None else ", eps %.2f" % epsilon
-        print("%d: done %d games, mean reward %.3f, speed %.2f f/s%s" % (
-            frame, len(self.total_rewards), mean_reward, speed, epsilon_str
-        ))
+        print(
+            "%d: done %d games, mean reward %.3f, speed %.2f f/s%s"
+            % (frame, len(self.total_rewards), mean_reward, speed, epsilon_str)
+        )
         sys.stdout.flush()
         if epsilon is not None:
             self.writer.add_scalar("epsilon", epsilon, frame)
@@ -153,7 +153,10 @@ class RewardTracker:
         save_checkpoint = False
         if self.best_mean_reward is None or self.best_mean_reward < mean_reward:
             if self.best_mean_reward is not None:
-                print("Best mean reward updated %.3f -> %.3f, model saved" % (self.best_mean_reward, mean_reward))
+                print(
+                    "Best mean reward updated %.3f -> %.3f, model saved"
+                    % (self.best_mean_reward, mean_reward)
+                )
             save_checkpoint = True
             self.best_mean_reward = mean_reward
         if mean_reward > self.stop_reward:

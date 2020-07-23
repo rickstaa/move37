@@ -28,10 +28,12 @@ SYNC_TARGET_FRAMES = 1000
 
 EPSILON_START = 1.0
 EPSILON_FINAL = 0.02
-EPSILON_DECAY_FRAMES = 10**5
+EPSILON_DECAY_FRAMES = 10 ** 5
 
 
-Experience = collections.namedtuple('Experience', field_names=['state', 'action', 'reward', 'done', 'new_state'])
+Experience = collections.namedtuple(
+    "Experience", field_names=["state", "action", "reward", "done", "new_state"]
+)
 
 
 class ExperienceBuffer:
@@ -46,9 +48,16 @@ class ExperienceBuffer:
 
     def sample(self, batch_size):
         indices = np.random.choice(len(self.buffer), batch_size, replace=False)
-        states, actions, rewards, dones, next_states = zip(*[self.buffer[idx] for idx in indices])
-        return np.array(states), np.array(actions), np.array(rewards, dtype=np.float32), \
-               np.array(dones, dtype=np.uint8), np.array(next_states)
+        states, actions, rewards, dones, next_states = zip(
+            *[self.buffer[idx] for idx in indices]
+        )
+        return (
+            np.array(states),
+            np.array(actions),
+            np.array(rewards, dtype=np.float32),
+            np.array(dones, dtype=np.uint8),
+            np.array(next_states),
+        )
 
 
 class Agent:
@@ -94,7 +103,7 @@ def calc_loss(batch, net, tgt_net, device="cpu"):
     next_states_v = torch.tensor(next_states).to(device)
     actions_v = torch.tensor(actions).to(device)
     rewards_v = torch.tensor(rewards).to(device)
-    done_mask = torch.ByteTensor(dones).to(device)
+    done_mask = torch.BoolTensor(dones).to(device)
 
     state_action_values = net(states_v).gather(1, actions_v.unsqueeze(-1)).squeeze(-1)
     next_state_values = tgt_net(next_states_v).max(1)[0]
@@ -106,13 +115,22 @@ def calc_loss(batch, net, tgt_net, device="cpu"):
 
 
 if __name__ == "__main__":
-    mkdir('.', 'checkpoints')
+    mkdir(".", "checkpoints")
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cuda", default=False, action="store_true", help="Enable cuda")
-    parser.add_argument("--env", default=DEFAULT_ENV_NAME,
-                        help="Name of the environment, default=" + DEFAULT_ENV_NAME)
-    parser.add_argument("--reward", type=float, default=MEAN_REWARD_GOAL,
-                        help="Mean reward goal to stop training, default=%.2f" % MEAN_REWARD_GOAL)
+    parser.add_argument(
+        "--cuda", default=False, action="store_true", help="Enable cuda"
+    )
+    parser.add_argument(
+        "--env",
+        default=DEFAULT_ENV_NAME,
+        help="Name of the environment, default=" + DEFAULT_ENV_NAME,
+    )
+    parser.add_argument(
+        "--reward",
+        type=float,
+        default=MEAN_REWARD_GOAL,
+        help="Mean reward goal to stop training, default=%.2f" % MEAN_REWARD_GOAL,
+    )
     args = parser.parse_args()
     device = torch.device("cuda" if args.cuda else "cpu")
 
@@ -145,18 +163,21 @@ if __name__ == "__main__":
             ts_frame = frame_idx
             ts = time.time()
             mean_reward = np.mean(total_rewards[-100:])
-            print("%d: done %d games, mean reward %.3f, eps %.2f, speed %.2f f/s" % (
-                frame_idx, len(total_rewards), mean_reward, epsilon,
-                speed
-            ))
+            print(
+                "%d: done %d games, mean reward %.3f, eps %.2f, speed %.2f f/s"
+                % (frame_idx, len(total_rewards), mean_reward, epsilon, speed)
+            )
             writer.add_scalar("epsilon", epsilon, frame_idx)
             writer.add_scalar("speed", speed, frame_idx)
             writer.add_scalar("reward_100", mean_reward, frame_idx)
             writer.add_scalar("reward", reward, frame_idx)
             if best_mean_reward is None or best_mean_reward < mean_reward:
-                torch.save(net.state_dict(), './checkpoints/' + args.env + "-best.dat")
+                torch.save(net.state_dict(), "./checkpoints/" + args.env + "-best.dat")
                 if best_mean_reward is not None:
-                    print("Best mean reward updated %.3f -> %.3f, model saved" % (best_mean_reward, mean_reward))
+                    print(
+                        "Best mean reward updated %.3f -> %.3f, model saved"
+                        % (best_mean_reward, mean_reward)
+                    )
                 best_mean_reward = mean_reward
             if mean_reward > args.reward:
                 print("Solved in %d frames!" % frame_idx)
@@ -173,5 +194,5 @@ if __name__ == "__main__":
         loss_t = calc_loss(batch, net, tgt_net, device=device)
         loss_t.backward()
         optimizer.step()
-  
+
     writer.close()

@@ -148,4 +148,3 @@ def standard_grid(obey_prob=1.0, step_cost=None):
       (2, 3): step_cost,
     })
   return g
-

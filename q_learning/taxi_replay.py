@@ -6,27 +6,27 @@ import sys
 import numpy as np
 import gym
 
-GAME = 'Taxi-v2'
+GAME = "Taxi-v3"
 env = gym.make(GAME)
-MAX_STEPS = env.spec.timestep_limit
+MAX_STEPS = env._max_episode_steps  # maximum steps in an episode, 200 for Taxi-v2
 
-if __name__ == '__main__':
-  if len(sys.argv) < 2:
-    sys.exit('Must specify a checkpoint file in command line')
-  cp_file = sys.argv[1]
-  
-  Q = np.load(cp_file)
-  total_reward = 0
-  state = env.reset()
-  env.render()
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        sys.exit("Must specify a checkpoint file in command line")
+    cp_file = sys.argv[1]
 
-  for step in range(MAX_STEPS):
-    prevState = state
-    action = np.argmax(Q[state])
-    state, reward, done, info = env.step(action)
-    total_reward += reward
+    Q = np.load(cp_file)
+    total_reward = 0
+    state = env.reset()
     env.render()
-    if done :
-        break
 
-  print('Total reward:', total_reward)
+    for step in range(MAX_STEPS):
+        prevState = state
+        action = np.argmax(Q[state])
+        state, reward, done, info = env.step(action)
+        total_reward += reward
+        env.render()
+        if done:
+            break
+
+    print("Total reward:", total_reward)
