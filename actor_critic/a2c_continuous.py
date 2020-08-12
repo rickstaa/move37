@@ -5,6 +5,7 @@ import time
 import math
 import ptan
 import gym
+
 # import pybullet_envs
 import argparse
 from tensorboardX import SummaryWriter
@@ -34,18 +35,9 @@ class ModelA2C(nn.Module):
     def __init__(self, obs_size, act_size):
         super(ModelA2C, self).__init__()
 
-        self.base = nn.Sequential(
-            nn.Linear(obs_size, HID_SIZE),
-            nn.ReLU(),
-        )
-        self.mu = nn.Sequential(
-            nn.Linear(HID_SIZE, act_size),
-            nn.Tanh(),
-        )
-        self.var = nn.Sequential(
-            nn.Linear(HID_SIZE, act_size),
-            nn.Softplus(),
-        )
+        self.base = nn.Sequential(nn.Linear(obs_size, HID_SIZE), nn.ReLU(),)
+        self.mu = nn.Sequential(nn.Linear(HID_SIZE, act_size), nn.Tanh(),)
+        self.var = nn.Sequential(nn.Linear(HID_SIZE, act_size), nn.Softplus(),)
         self.value = nn.Linear(HID_SIZE, 1)
 
     def forward(self, x):
@@ -88,15 +80,17 @@ def test_net(net, env, count=10, device="cpu"):
 
 
 def calc_logprob(mu_v, var_v, actions_v):
-    p1 = - ((mu_v - actions_v) ** 2) / (2*var_v.clamp(min=1e-3))
-    p2 = - torch.log(torch.sqrt(2 * math.pi * var_v))
+    p1 = -((mu_v - actions_v) ** 2) / (2 * var_v.clamp(min=1e-3))
+    p2 = -torch.log(torch.sqrt(2 * math.pi * var_v))
     return p1 + p2
 
 
 if __name__ == "__main__":
-    common.mkdir('.', 'checkpoints')
+    common.mkdir(".", "checkpoints")
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cuda", default=False, action='store_true', help='Enable CUDA')
+    parser.add_argument(
+        "--cuda", default=False, action="store_true", help="Enable CUDA"
+    )
     parser.add_argument("-n", "--name", required=True, help="Name of the run")
     args = parser.parse_args()
     device = torch.device("cuda" if args.cuda else "cpu")
@@ -112,7 +106,9 @@ if __name__ == "__main__":
 
     writer = SummaryWriter(comment="-a2c_" + args.name)
     agent = AgentA2C(net, device=device)
-    exp_source = ptan.experience.ExperienceSourceFirstLast(env, agent, GAMMA, steps_count=REWARD_STEPS)
+    exp_source = ptan.experience.ExperienceSourceFirstLast(
+        env, agent, GAMMA, steps_count=REWARD_STEPS
+    )
 
     optimizer = optim.Adam(net.parameters(), lr=LEARNING_RATE)
 
@@ -130,13 +126,18 @@ if __name__ == "__main__":
                 if step_idx % TEST_ITERS == 0:
                     ts = time.time()
                     rewards, steps = test_net(net, test_env, device=device)
-                    print("Test done is %.2f sec, reward %.3f, steps %d" % (
-                        time.time() - ts, rewards, steps))
+                    print(
+                        "Test done is %.2f sec, reward %.3f, steps %d"
+                        % (time.time() - ts, rewards, steps)
+                    )
                     writer.add_scalar("test_reward", rewards, step_idx)
                     writer.add_scalar("test_steps", steps, step_idx)
                     if best_reward is None or best_reward < rewards:
                         if best_reward is not None:
-                            print("Best reward updated: %.3f -> %.3f" % (best_reward, rewards))
+                            print(
+                                "Best reward updated: %.3f -> %.3f"
+                                % (best_reward, rewards)
+                            )
                             name = "best_%+.3f_%d.dat" % (rewards, step_idx)
                             fname = os.path.join(save_path, name)
                             torch.save(net.state_dict(), fname)
@@ -146,8 +147,9 @@ if __name__ == "__main__":
                 if len(batch) < BATCH_SIZE:
                     continue
 
-                states_v, actions_v, vals_ref_v = \
-                    common.unpack_batch_continuous(batch, net, last_val_gamma=GAMMA ** REWARD_STEPS, device=device)
+                states_v, actions_v, vals_ref_v = common.unpack_batch_continuous(
+                    batch, net, last_val_gamma=GAMMA ** REWARD_STEPS, device=device
+                )
                 batch.clear()
 
                 optimizer.zero_grad()
@@ -158,7 +160,9 @@ if __name__ == "__main__":
                 adv_v = vals_ref_v.unsqueeze(dim=-1) - value_v.detach()
                 log_prob_v = adv_v * calc_logprob(mu_v, var_v, actions_v)
                 loss_policy_v = -log_prob_v.mean()
-                entropy_loss_v = ENTROPY_BETA * (-(torch.log(2*math.pi*var_v) + 1)/2).mean()
+                entropy_loss_v = (
+                    ENTROPY_BETA * (-(torch.log(2 * math.pi * var_v) + 1) / 2).mean()
+                )
 
                 loss_v = loss_policy_v + entropy_loss_v + loss_value_v
                 loss_v.backward()
@@ -171,4 +175,3 @@ if __name__ == "__main__":
                 tb_tracker.track("loss_policy", loss_policy_v, step_idx)
                 tb_tracker.track("loss_value", loss_value_v, step_idx)
                 tb_tracker.track("loss_total", loss_v, step_idx)
-

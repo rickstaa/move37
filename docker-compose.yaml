@@ -1,0 +1,22 @@
+version: "3.4"
+services:
+  move37_debug: #docker run -it -v ${PWD}:/work -w /work -p 5003:5000 aimvector/python:1.0.0 /bin/sh
+    container_name: move37_dqn_debug
+    image: move37_dqn:debug
+    build:
+      context: ./dqn
+      dockerfile: Dockerfile-gpu-debug
+      target: debug
+    volumes:
+      - ./dqn:/root/dql_train
+    ports:
+      - 5678:5678
+  move37_deploy: #docker run -it -v ${PWD}:/work -w /work -p 5003:5000 aimvector/python:1.0.0 /bin/sh
+    container_name: move37_dqn_deploy
+    image: move37_dqn:deploy
+    build:
+      context: ./dqn
+      dockerfile: Dockerfile-gpu-debug
+      target: prod
+    volumes:
+      - ./dqn:/root/dql_train

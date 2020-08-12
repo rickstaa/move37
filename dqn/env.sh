@@ -1,0 +1,9 @@
+export MODEL_DIR=pytorch_model_$(date +%Y%m%d_%H%M%S)
+export REGION=europe-west1
+export BUCKET_NAME=${PROJECT_ID}-${REGION}-dqn_move37
+export JOB_NAME=custom_container_job_$(date +%Y%m%d_%H%M%S)
+export PROJECT_ID=$(gcloud config list project --format "value(core.project)")
+export IMAGE_REPO_NAME=dqn_pytorch_gpu_container
+export IMAGE_TAG=dqn_pytorch_gpu
+export IMAGE_URI=eu.gcr.io/$PROJECT_ID/$IMAGE_REPO_NAME:$IMAGE_TAG
+export OUTPUT_PATH=gs://$BUCKET_NAME/$JOB_NAME

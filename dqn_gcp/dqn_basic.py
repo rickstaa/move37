@@ -3,8 +3,6 @@
 from lib import wrappers
 from lib import dqn_model
 from lib.utils import mkdir
-import os
-import subprocess
 
 import argparse
 import time
@@ -15,14 +13,11 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-try:
-    from tensorboardX import SummaryWriter
-except ImportError:
-    from torch.utils.tensorboard import SummaryWriter
+from tensorboardX import SummaryWriter
+
 
 DEFAULT_ENV_NAME = "PongNoFrameskip-v4"
 MEAN_REWARD_GOAL = 19.5
-MAX_FRAMES = 1e4
 
 GAMMA = 0.99
 BATCH_SIZE = 32
@@ -136,30 +131,14 @@ if __name__ == "__main__":
         default=MEAN_REWARD_GOAL,
         help="Mean reward goal to stop training, default=%.2f" % MEAN_REWARD_GOAL,
     )
-    parser.add_argument(
-        "--frames",
-        type=float,
-        default=MAX_FRAMES,
-        help="Mean reward goal to stop training, default=%.2f" % MAX_FRAMES,
-    )
-    parser.add_argument(
-        "--model-dir", default=".", help="The directory to store the model"
-    )
-    # parser.add_argument(
-    #     "--job-dir",
-    #     help="GCS location to write checkpoints and export models",
-    #     required=True,
-    # ) # NOTE: DOESN"T WORK WITH CONTAINERS!
     args = parser.parse_args()
-    # arguments = args.__dict__
-    # job_dir = arguments.pop("job_dir")
     device = torch.device("cuda" if args.cuda else "cpu")
 
     env = wrappers.make_env(args.env)
 
     net = dqn_model.DQN(env.observation_space.shape, env.action_space.n).to(device)
     tgt_net = dqn_model.DQN(env.observation_space.shape, env.action_space.n).to(device)
-    writer = SummaryWriter(comment="-" + args.env, log_dir=args.model_dir)
+    writer = SummaryWriter(comment="-" + args.env)
     print(net)
 
     buffer = ExperienceBuffer(REPLAY_BUFFER_SIZE)
@@ -193,24 +172,14 @@ if __name__ == "__main__":
             writer.add_scalar("reward_100", mean_reward, frame_idx)
             writer.add_scalar("reward", reward, frame_idx)
             if best_mean_reward is None or best_mean_reward < mean_reward:
-                tmp_model_file = os.path.join("checkpoints", args.env + "-best.dat")
-                torch.save(net.state_dict(), tmp_model_file)
+                torch.save(net.state_dict(), "./checkpoints/" + args.env + "-best.dat")
                 if best_mean_reward is not None:
                     print(
                         "Best mean reward updated %.3f -> %.3f, model saved"
                         % (best_mean_reward, mean_reward)
                     )
                 best_mean_reward = mean_reward
-                if args.model_dir:
-                    subprocess.check_call(
-                        [
-                            "gsutil",
-                            "cp",
-                            tmp_model_file,
-                            os.path.join(args.model_dir, tmp_model_file),
-                        ]
-                    )
-            if mean_reward > args.reward or frame_idx <= args.frames:
+            if mean_reward > args.reward:
                 print("Solved in %d frames!" % frame_idx)
                 break
 
